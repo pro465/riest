@@ -12,7 +12,7 @@ fn main() {
     let target = 69420.;
     let thres = 1E-10;
     let len_lim = 100;
-    let cost_lim = 44;
+    let cost_lim = 49;
     let consts = consts();
     let avoidlist = &[];
     let mut searcher = SearcherBuilder {
@@ -30,7 +30,6 @@ fn main() {
     }
     println!("{}", searcher.num_numbers());
     println!("{}", searcher.new_list().len());
-    for i in 
 }
 
 fn consts() -> [(f64, Cost, Option<&'static str>); NCONSTS] {

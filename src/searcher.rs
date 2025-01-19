@@ -26,9 +26,9 @@ pub struct Searcher<'a> {
     best: Option<Program<'a>>,
     numbers: BTreeMap<F64Wrapper<'a>, Program<'a>>,
     costs: BTreeSet<(Cost, F64Wrapper<'a>)>,
-    queue: BTreeMap<Cost, BTreeMap<F64Wrapper<'a>, Program<'a>>>,
+    queue: BTreeMap<Cost, Vec<Program<'a>>>,
     queue_numbers: BTreeMap<F64Wrapper<'a>, Cost>,
-    curr: BTreeMap<F64Wrapper<'a>, Cost>,
+    curr: Vec<(Cost, F64Wrapper<'a>)>,
     avoidlist: Vec<F64Wrapper<'a>>,
 }
 
@@ -51,8 +51,8 @@ impl<'a, 'b> SearcherBuilder<'a, 'b> {
             .iter()
             .map(|(n, c, s)| Program::const_program(F64Wrapper::new(*n, thres, *c, *s)))
             .collect();
-        let costs = init.iter().map(|p| (p.cost(), p.value())).collect();
-        let nums = init.iter().map(|p| (p.value(), p.cost())).collect();
+        let nums: Vec<_> = init.iter().map(|p| (p.cost(), p.value())).collect();
+        let costs = nums.iter().copied().collect();
         let map = init.into_iter().map(|p| (p.value(), p)).collect();
         Searcher {
             step: 0,
@@ -94,7 +94,7 @@ impl<'a> Searcher<'a> {
     pub fn num_numbers(&self) -> usize {
         self.numbers.len()
     }
-    pub fn new_list(&self) -> &BTreeMap<F64Wrapper<'a>, Cost> {
+    pub fn new_list(&self) -> &[(Cost, F64Wrapper<'a>)] {
         &self.curr
     }
     pub fn expand(&mut self) -> Option<Option<Program<'a>>> {
@@ -115,19 +115,18 @@ impl<'a> Searcher<'a> {
             self.queue_numbers.insert(p.value(), p.cost());
             self.queue
                 .entry(p.cost())
-                .or_insert(BTreeMap::new())
-                .insert(p.value(), p);
+                .or_insert(Vec::new())
+                .push(p);
         };
 
-        for p1 in self.curr.keys() {
-            let p1 = self.numbers.get(&p1).unwrap();
-            let i = p1.cost();
+        for (_c, i) in self.curr.iter() {
+            let p1 = self.numbers.get(&i).unwrap();
             for p in p1.combs1() {
                 insert(p);
             }
 
             for (j, p2) in self.costs.iter() {
-                if self.curr.contains_key(&p2) && *p2 > p1.value() {
+                if self.curr.contains(&(*j, *p2)) && *p2 > p1.value() {
                     continue;
                 }
                 let p2 = self.numbers.get(&p2).unwrap();
@@ -147,7 +146,7 @@ impl<'a> Searcher<'a> {
             self.queue.pop_last().unwrap();
         }
 
-        ps.retain(|_, p| {
+        ps.retain(|p| {
             let (n, c) = (p.value(), p.cost());
             // dbg!(n, c);
             // let (mut na, mut nb) = (n, n);
@@ -164,10 +163,11 @@ impl<'a> Searcher<'a> {
             }
         });
         self.curr.clear();
-        self.curr.extend(ps.iter().map(|(&n, c)| (n, c.cost())));
+        self.curr.extend(ps.iter().map(|c| (c.cost(), c.value())));
 
         let (mut b, mut bd, t) = (None, self.best_delta, self.target);
-        for (n, p) in ps {
+        for p in ps {
+            let n = p.value();
             if let Some(v) = self.numbers.get(&n) {
                 self.costs.remove(&(v.cost(), n));
             }
